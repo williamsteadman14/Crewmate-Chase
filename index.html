@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mini Skeld — Full Game</title>
 <style>
-body { margin:0; overflow:hidden; background:black; touch-action:none; }
+body { margin:0; overflow:hidden; background:black; touch-action:none; font-family:Arial, sans-serif;}
 canvas { display:block; width:100vw; height:100vh; background:#1a1a2e; }
 #joystick { position:absolute; bottom:40px; left:40px; width:100px; height:100px; background:rgba(255,255,255,0.1); border-radius:50%; touch-action:none; }
 #stick { position:absolute; left:35px; top:35px; width:30px; height:30px; background:rgba(255,255,255,0.4); border-radius:50%; }
@@ -17,6 +17,10 @@ canvas { display:block; width:100vw; height:100vh; background:#1a1a2e; }
 #crewFlash { position:absolute; top:0; left:0; width:100%; height:100%; background:blue; opacity:0; transition:opacity 0.5s; pointer-events:none; }
 #winMsg { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-family:Arial, sans-serif; font-size:40px; color:white; opacity:0; transition:opacity 0.5s; text-shadow:0 0 20px red; }
 #crewMsg { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-family:Arial, sans-serif; font-size:40px; color:white; opacity:0; transition:opacity 0.5s; text-shadow:0 0 20px blue; }
+#codePanel { position:absolute; top:10px; left:10px; padding:5px; border-radius:10px; background:rgba(255,255,255,0.1); display:flex; align-items:center; gap:5px; z-index:10; }
+#codePanel input { padding:5px 8px; border-radius:5px; border:none; outline:none; font-size:14px; background:rgba(255,255,255,0.2); color:white; }
+#codePanel button { padding:5px 10px; border-radius:5px; border:none; background:#222; color:white; cursor:pointer; font-size:14px; }
+#codePanel button:hover { background:#444; }
 </style>
 </head>
 <body>
@@ -29,6 +33,14 @@ canvas { display:block; width:100vw; height:100vh; background:#1a1a2e; }
 <div id="winMsg">IMPOSTER WINS!</div>
 <div id="crewMsg">CREWMATES WIN!</div>
 
+<div id="codePanel">
+  <button id="codeToggle">CODE</button>
+  <div id="codeContent" style="display:none; gap:5px; margin-left:5px; flex-direction:row;">
+    <input id="codeInput" type="text" placeholder="Enter code">
+    <button id="codeSubmit">Submit</button>
+  </div>
+</div>
+
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
@@ -36,8 +48,6 @@ canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
 const tileSize = 40;
-
-// Original working map
 const originalMap = [
 [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
 [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
@@ -52,12 +62,9 @@ const originalMap = [
 [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
 [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
 ];
-
-let map = [];
-let deadTiles = [];
-const aiPlayers = [];
-const aiCount = 4;
-const player = {x:tileSize*2, y:tileSize*2, color:"red", speed:2};
+let map = [], deadTiles=[], aiPlayers=[];
+const aiCount=4;
+const player={x:tileSize*2,y:tileSize*2,color:"red",speed:2};
 let killCooldown=false;
 
 // Joystick
@@ -88,9 +95,7 @@ killBtn.addEventListener("click", ()=>{
   aiPlayers.forEach(ai=>{
     if(ai.alive && Math.hypot(ai.x-player.x, ai.y-player.y)<40){
       ai.alive=false;
-      const tx = Math.floor(ai.x/tileSize);
-      const ty = Math.floor(ai.y/tileSize);
-      deadTiles.push({tx,ty});
+      deadTiles.push({tx:Math.floor(ai.x/tileSize),ty:Math.floor(ai.y/tileSize)});
     }
   });
   startCooldown();
@@ -117,196 +122,147 @@ function startCooldown(){
   }, interval);
 }
 
-// Collision
-function isWall(x,y){
-  const tx = Math.floor(x/tileSize);
-  const ty = Math.floor(y/tileSize);
-  return map[ty] && map[ty][tx] === 1;
-}
-
-// Random empty tile
-function getEmptyTile(){
-  let x,y;
-  do{
-    x=Math.floor(Math.random()*map[0].length);
-    y=Math.floor(Math.random()*map.length);
-  }while(map[y][x]===1);
-  return {x:x*tileSize + tileSize/2, y:y*tileSize + tileSize/2};
-}
-
-// Connected random map generator
-function generateConnectedMap(){
-  const rows = originalMap.length;
-  const cols = originalMap[0].length;
-  const newMap = Array.from({length: rows}, () => Array(cols).fill(1));
-
-  const startX = 2;
-  const startY = 2;
-  const stack = [{x:startX, y:startY}];
-  newMap[startY][startX] = 0;
-
-  const directions = [
-    {dx:0, dy:-1}, {dx:0, dy:1},
-    {dx:-1, dy:0}, {dx:1, dy:0}
-  ];
-
-  while(stack.length > 0){
-    const current = stack[stack.length-1];
-    const {x, y} = current;
-    const shuffled = directions.sort(()=>Math.random()-0.5);
-    let carved = false;
-
-    for(const {dx, dy} of shuffled){
-      const nx = x + dx*2;
-      const ny = y + dy*2;
-      if(ny>0 && ny<rows-1 && nx>0 && nx<cols-1 && newMap[ny][nx]===1){
-        newMap[y+dy][x+dx] = 0;
-        newMap[ny][nx] = 0;
-        stack.push({x:nx, y:ny});
-        carved = true;
-        break;
-      }
-    }
-
-    if(!carved) stack.pop();
-  }
-
-  // Add extra random paths
-  for(let y=1; y<rows-1; y++){
-    for(let x=1; x<cols-1; x++){
-      if(newMap[y][x]===1 && Math.random()<0.1) newMap[y][x]=0;
-    }
-  }
-
-  return newMap;
-}
-
-// Load map and AI
+// Load map
 function loadMap(newMap){
   map.length=0;
   newMap.forEach(r=>map.push([...r]));
   player.x=tileSize*2; player.y=tileSize*2; player.speed=2;
-  deadTiles.length=0;
-  aiPlayers.length=0;
+  deadTiles.length=0; aiPlayers.length=0;
   for(let i=0;i<aiCount;i++){
     const pos=getEmptyTile();
-    aiPlayers.push({x:pos.x, y:pos.y, color:"lime", alive:true, dirX:Math.random()*2-1, dirY:Math.random()*2-1, timer:Math.floor(Math.random()*80+20)});
+    aiPlayers.push({x:pos.x,y:pos.y,color:"lime",alive:true,dirX:Math.random()*2-1,dirY:Math.random()*2-1,timer:Math.floor(Math.random()*80+20)});
   }
   killCooldown=false; killText.textContent="KILL"; killBar.style.transform="scaleX(0)";
   document.getElementById("winMsg").style.opacity=0;
   document.getElementById("crewMsg").style.opacity=0;
 }
-
-// Initial load
 loadMap(originalMap);
 
-// Restart button
+// Restart
 document.getElementById("restartBtn").addEventListener("click", ()=>{ autoRestart(); });
+function autoRestart(){ loadMap(generateConnectedMap()); }
 
-// Auto restart after 3 seconds with connected map
-function autoRestart(){
-  const randomMap = generateConnectedMap();
-  loadMap(randomMap);
+// Collision
+function isWall(x,y){ const tx=Math.floor(x/tileSize), ty=Math.floor(y/tileSize); return map[ty] && map[ty][tx]===1; }
+function getEmptyTile(){ let x,y; do{x=Math.floor(Math.random()*map[0].length); y=Math.floor(Math.random()*map.length);}while(map[y][x]===1); return {x:x*tileSize+tileSize/2,y:y*tileSize+tileSize/2}; }
+
+function generateConnectedMap(){
+  const rows=originalMap.length, cols=originalMap[0].length;
+  const newMap=Array.from({length:rows},()=>Array(cols).fill(1));
+  const stack=[{x:2,y:2}]; newMap[2][2]=0;
+  const dirs=[{dx:0,dy:-1},{dx:0,dy:1},{dx:-1,dy:0},{dx:1,dy:0}];
+  while(stack.length>0){
+    const current=stack[stack.length-1]; const {x,y}=current;
+    const shuffled=dirs.sort(()=>Math.random()-0.5); let carved=false;
+    for(const {dx,dy} of shuffled){
+      const nx=x+dx*2, ny=y+dy*2;
+      if(ny>0&&ny<rows-1&&nx>0&&nx<cols-1&&newMap[ny][nx]===1){
+        newMap[y+dy][x+dx]=0; newMap[ny][nx]=0; stack.push({x:nx,y:ny}); carved=true; break;
+      }
+    }
+    if(!carved) stack.pop();
+  }
+  for(let y=1;y<rows-1;y++) for(let x=1;x<cols-1;x++) if(newMap[y][x]===1 && Math.random()<0.1) newMap[y][x]=0;
+  return newMap;
 }
 
-// Update AI
-function updateAI(ai){
-  if(!ai.alive) return;
-  ai.timer--;
-  if(ai.timer<=0){ ai.dirX=Math.random()*2-1; ai.dirY=Math.random()*2-1; ai.timer=Math.floor(Math.random()*80+20); }
-  const nx=ai.x+ai.dirX;
-  const ny=ai.y+ai.dirY;
-  if(!isWall(nx,ai.y)) ai.x=nx; else ai.dirX*=-1;
-  if(!isWall(ai.x,ny)) ai.y=ny; else ai.dirY*=-1;
-}
-
-// Update player
+// Player
 function updatePlayer(){
-  const nx=player.x+joyX*player.speed*1.6;
-  const ny=player.y+joyY*player.speed*1.6;
+  const nx=player.x+joyX*player.speed*1.6, ny=player.y+joyY*player.speed*1.6;
   if(!isWall(nx,player.y)) player.x=nx;
   if(!isWall(player.x,ny)) player.y=ny;
 }
 
-// Check dead tile collision
+// AI
+function updateAI(ai){
+  if(!ai.alive) return;
+  ai.timer--; if(ai.timer<=0){ ai.dirX=Math.random()*2-1; ai.dirY=Math.random()*2-1; ai.timer=Math.floor(Math.random()*80+20);}
+  const nx=ai.x+ai.dirX, ny=ai.y+ai.dirY;
+  if(!isWall(nx,ai.y)) ai.x=nx; else ai.dirX*=-1;
+  if(!isWall(ai.x,ny)) ai.y=ny; else ai.dirY*=-1;
+}
+
+// Dead tile collision
 function checkDeadTileCollision(){
-  for(const ai of aiPlayers){
-    if(!ai.alive) continue;
-    const tx=Math.floor(ai.x/tileSize);
-    const ty=Math.floor(ai.y/tileSize);
-    for(const dead of deadTiles){
-      if(dead.tx===tx && dead.ty===ty){
-        document.getElementById("crewFlash").style.opacity=1;
-        setTimeout(()=>{
-          document.getElementById("crewFlash").style.opacity=0;
-          document.getElementById("crewMsg").style.opacity=1;
-          setTimeout(autoRestart,3000);
-        },120);
-        player.speed=0; aiPlayers.forEach(a=>a.speed=0);
-        return;
-      }
-    }
+  for(const ai of aiPlayers){ if(!ai.alive) continue;
+    const tx=Math.floor(ai.x/tileSize), ty=Math.floor(ai.y/tileSize);
+    for(const dead of deadTiles){ if(dead.tx===tx && dead.ty===ty){
+      document.getElementById("crewFlash").style.opacity=1;
+      setTimeout(()=>{ document.getElementById("crewFlash").style.opacity=0; document.getElementById("crewMsg").style.opacity=1; setTimeout(autoRestart,3000); },120);
+      player.speed=0; aiPlayers.forEach(a=>a.speed=0); return;
+    }}
   }
 }
 
-// Check win
-function checkWin(){
-  const aliveCrew = aiPlayers.filter(a=>a.alive).length;
-  if(aliveCrew===0){
-    document.getElementById("flash").style.opacity=1;
-    setTimeout(()=>{
-      document.getElementById("flash").style.opacity=0;
-      document.getElementById("winMsg").style.opacity=1;
-      setTimeout(autoRestart,3000);
-    },120);
-    player.speed=0; aiPlayers.forEach(a=>a.speed=0);
-  }
-}
+// Win check
+function checkWin(){ if(aiPlayers.filter(a=>a.alive).length===0){
+  document.getElementById("flash").style.opacity=1;
+  setTimeout(()=>{ document.getElementById("flash").style.opacity=0; document.getElementById("winMsg").style.opacity=1; setTimeout(autoRestart,3000); },120);
+  player.speed=0; aiPlayers.forEach(a=>a.speed=0);
+}}
 
 // Draw
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  const camX=player.x-canvas.width/2;
-  const camY=player.y-canvas.height/2;
-
-  // Map
-  for(let y=0;y<map.length;y++){
-    for(let x=0;x<map[y].length;x++){
-      ctx.fillStyle=map[y][x]?"#2c2c54":"#202040";
-      ctx.fillRect(x*tileSize-camX, y*tileSize-camY, tileSize, tileSize);
-    }
+  const camX=player.x-canvas.width/2, camY=player.y-canvas.height/2;
+  for(let y=0;y<map.length;y++) for(let x=0;x<map[y].length;x++){
+    ctx.fillStyle=map[y][x]? "#2c2c54":"#202040";
+    ctx.fillRect(x*tileSize-camX, y*tileSize-camY, tileSize, tileSize);
   }
-
-  // Dead tiles
-  deadTiles.forEach(d=>{
-    ctx.fillStyle="rgba(0,0,255,0.3)";
-    ctx.fillRect(d.tx*tileSize-camX, d.ty*tileSize-camY, tileSize, tileSize);
-  });
-
-  // AI
-  aiPlayers.forEach(ai=>{
-    ctx.fillStyle=ai.alive?ai.color:"gray";
-    ctx.beginPath();
-    ctx.arc(ai.x-camX, ai.y-camY,10,0,Math.PI*2);
-    ctx.fill();
-  });
-
-  // Player
-  ctx.fillStyle=player.color;
-  ctx.beginPath();
-  ctx.arc(player.x-camX, player.y-camY,12,0,Math.PI*2);
-  ctx.fill();
+  deadTiles.forEach(d=>{ ctx.fillStyle="rgba(0,0,255,0.6)"; ctx.fillRect(d.tx*tileSize-camX, d.ty*tileSize-camY, tileSize, tileSize); });
+  aiPlayers.forEach(ai=>{ if(!ai.alive) return; ctx.fillStyle=ai.color; ctx.beginPath(); ctx.arc(ai.x-camX, ai.y-camY, tileSize/2.5,0,Math.PI*2); ctx.fill(); });
+  ctx.fillStyle=player.color; ctx.beginPath(); ctx.arc(player.x-camX,player.y-camY,tileSize/2.5,0,Math.PI*2); ctx.fill();
 }
 
-// Main loop
-function loop(){
-  updatePlayer();
-  aiPlayers.forEach(updateAI);
-  checkDeadTileCollision();
-  draw();
-  requestAnimationFrame(loop);
-}
+// Loop
+function loop(){ updatePlayer(); aiPlayers.forEach(updateAI); checkDeadTileCollision(); checkWin(); draw(); requestAnimationFrame(loop);}
 loop();
+
+// Cheat codes
+const codeInput=document.getElementById("codeInput");
+const codeSubmit=document.getElementById("codeSubmit");
+codeSubmit.addEventListener("click",submitCode);
+codeInput.addEventListener("keydown",e=>{if(e.key==="Enter") submitCode();});
+
+function submitCode(){
+  const code=codeInput.value.trim().toLowerCase();
+  switch(code){
+    case "killall":
+  aiPlayers.forEach(ai => {
+    if(ai.alive){
+      ai.alive = false;
+      const tx = Math.floor(ai.x / tileSize);
+      const ty = Math.floor(ai.y / tileSize);
+      deadTiles.push({tx, ty});
+    }
+  });
+
+  // Show imposter win
+  document.getElementById("flash").style.opacity = 1;
+  setTimeout(() => {
+    document.getElementById("flash").style.opacity = 0;
+    document.getElementById("winMsg").style.opacity = 1;
+    setTimeout(autoRestart, 3000);
+  }, 120);
+
+  // Stop movement
+  player.speed = 0;
+  aiPlayers.forEach(a => a.speed = 0);
+
+  alert("All crewmates eliminated!");
+  break;
+    case "shuffle": aiPlayers.forEach(ai=>{ if(ai.alive){ const pos=getEmptyTile(); ai.x=pos.x; ai.y=pos.y; } }); alert("AI shuffled!"); break;
+    case "speedy": const orig=player.speed; player.speed*=2; alert("Speed boost activated!"); setTimeout(()=>{ player.speed=orig; alert("Speed boost ended.");},5000); break;
+    default: alert("Invalid code!");
+  }
+  codeInput.value="";
+}
+
+// Toggle cheat panel
+document.getElementById("codeToggle").addEventListener("click", ()=>{
+  const content=document.getElementById("codeContent");
+  content.style.display=content.style.display==="flex"?"none":"flex";
+});
 </script>
 </body>
 </html>
