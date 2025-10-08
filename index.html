@@ -62,9 +62,9 @@ const originalMap = [
 [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
 [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
 ];
-let map = [], deadTiles=[], aiPlayers=[];
-const aiCount=4;
-const player={x:tileSize*2,y:tileSize*2,color:"red",speed:2};
+let map = [], deadTiles = [], aiPlayers = [];
+const aiCount = 4;
+const player = {x:tileSize*2, y:tileSize*2, color:"red", speed:2};
 let killCooldown=false;
 
 // Joystick
@@ -128,9 +128,19 @@ function loadMap(newMap){
   newMap.forEach(r=>map.push([...r]));
   player.x=tileSize*2; player.y=tileSize*2; player.speed=2;
   deadTiles.length=0; aiPlayers.length=0;
+
   for(let i=0;i<aiCount;i++){
     const pos=getEmptyTile();
-    aiPlayers.push({x:pos.x,y:pos.y,color:"lime",alive:true,dirX:Math.random()*2-1,dirY:Math.random()*2-1,timer:Math.floor(Math.random()*80+20)});
+    aiPlayers.push({
+      x:pos.x,
+      y:pos.y,
+      color:"lime",
+      alive:true,
+      dirX:Math.random()*2-1,
+      dirY:Math.random()*2-1,
+      timer:Math.floor(Math.random()*80+20),
+      chaser: i===0
+    });
   }
   killCooldown=false; killText.textContent="KILL"; killBar.style.transform="scaleX(0)";
   document.getElementById("winMsg").style.opacity=0;
@@ -142,10 +152,9 @@ loadMap(originalMap);
 document.getElementById("restartBtn").addEventListener("click", ()=>{ autoRestart(); });
 function autoRestart(){ loadMap(generateConnectedMap()); }
 
-// Collision
+// Collision helpers
 function isWall(x,y){ const tx=Math.floor(x/tileSize), ty=Math.floor(y/tileSize); return map[ty] && map[ty][tx]===1; }
 function getEmptyTile(){ let x,y; do{x=Math.floor(Math.random()*map[0].length); y=Math.floor(Math.random()*map.length);}while(map[y][x]===1); return {x:x*tileSize+tileSize/2,y:y*tileSize+tileSize/2}; }
-
 function generateConnectedMap(){
   const rows=originalMap.length, cols=originalMap[0].length;
   const newMap=Array.from({length:rows},()=>Array(cols).fill(1));
@@ -166,7 +175,7 @@ function generateConnectedMap(){
   return newMap;
 }
 
-// Player
+// Player movement
 function updatePlayer(){
   const nx=player.x+joyX*player.speed*1.6, ny=player.y+joyY*player.speed*1.6;
   if(!isWall(nx,player.y)) player.x=nx;
@@ -174,94 +183,159 @@ function updatePlayer(){
 }
 
 // AI
-function updateAI(ai){
-  if(!ai.alive) return;
-  ai.timer--; if(ai.timer<=0){ ai.dirX=Math.random()*2-1; ai.dirY=Math.random()*2-1; ai.timer=Math.floor(Math.random()*80+20);}
-  const nx=ai.x+ai.dirX, ny=ai.y+ai.dirY;
-  if(!isWall(nx,ai.y)) ai.x=nx; else ai.dirX*=-1;
-  if(!isWall(ai.x,ny)) ai.y=ny; else ai.dirY*=-1;
+function getNextStep(ai){
+  const start = {x:Math.floor(ai.x/tileSize), y:Math.floor(ai.y/tileSize)};
+  const goal = {x:Math.floor(player.x/tileSize), y:Math.floor(player.y/tileSize)};
+  const queue = [start];
+  const visited = Array.from({length:map.length},()=>Array(map[0].length).fill(false));
+  const prev = Array.from({length:map.length},()=>Array(map[0].length).fill(null));
+  visited[start.y][start.x]=true;
+  while(queue.length>0){
+    const current=queue.shift();
+    if(current.x===goal.x && current.y===goal.y) break;
+    const moves=[{dx:0,dy:-1},{dx:0,dy:1},{dx:-1,dy:0},{dx:1,dy:0}];
+    for(const m of moves){
+      const nx=current.x+m.dx, ny=current.y+m.dy;
+      if(nx>=0&&ny>=0&&ny<map.length&&nx<map[0].length&&!visited[ny][nx]&&map[ny][nx]===0){
+        visited[ny][nx]=true; prev[ny][nx]=current; queue.push({x:nx,y:ny});
+      }
+    }
+  }
+  let path=[], cur=goal;
+  while(cur&&(cur.x!==start.x||cur.y!==start.y)){ path.push(cur); cur=prev[cur.y][cur.x]; }
+  if(path.length>0) return path[path.length-1]; return start;
 }
 
-// Dead tile collision
+function updateAI(ai){
+  if(!ai.alive) return;
+  if(ai.chaser){
+    const nextStep=getNextStep(ai);
+    const nx = nextStep.x*tileSize + tileSize/2;
+    const ny = nextStep.y*tileSize + tileSize/2;
+    const speed = .75;
+    const dx = nx - ai.x;
+    const dy = ny - ai.y;
+    const dist = Math.hypot(dx,dy);
+    if(dist>0){ ai.x += dx/dist*speed; ai.y += dy/dist*speed; }
+    if(Math.hypot(ai.x - player.x, ai.y - player.y)<tileSize/1.5){
+      document.getElementById("crewFlash").style.opacity=1;
+      setTimeout(()=>{ document.getElementById("crewFlash").style.opacity=0; document.getElementById("crewMsg").style.opacity=1; setTimeout(autoRestart,3000); },120);
+      player.speed=0; aiPlayers.forEach(a=>a.speed=0);
+    }
+  } else {
+    ai.timer--;
+    if(ai.timer<=0){ ai.dirX=Math.random()*2-1; ai.dirY=Math.random()*2-1; ai.timer=Math.floor(Math.random()*80+20);}
+    const nx=ai.x+ai.dirX, ny=ai.y+ai.dirY;
+    if(!isWall(nx,ai.y)) ai.x=nx; else ai.dirX*=-1;
+    if(!isWall(ai.x,ny)) ai.y=ny; else ai.dirY*=-1;
+  }
+}
+
+// Dead tiles
 function checkDeadTileCollision(){
   for(const ai of aiPlayers){ if(!ai.alive) continue;
     const tx=Math.floor(ai.x/tileSize), ty=Math.floor(ai.y/tileSize);
     for(const dead of deadTiles){ if(dead.tx===tx && dead.ty===ty){
       document.getElementById("crewFlash").style.opacity=1;
-      setTimeout(()=>{ document.getElementById("crewFlash").style.opacity=0; document.getElementById("crewMsg").style.opacity=1; setTimeout(autoRestart,3000); },120);
-      player.speed=0; aiPlayers.forEach(a=>a.speed=0); return;
+   setTimeout(() => {
+        document.getElementById("crewMsg").style.opacity = 1;
+        setTimeout(autoRestart, 3000);
+      }, 120);
+      player.speed = 0;
+      aiPlayers.forEach(a => a.speed = 0);
+      return;
     }}
   }
 }
 
 // Win check
-function checkWin(){ if(aiPlayers.filter(a=>a.alive).length===0){
-  document.getElementById("flash").style.opacity=1;
-  setTimeout(()=>{ document.getElementById("flash").style.opacity=0; document.getElementById("winMsg").style.opacity=1; setTimeout(autoRestart,3000); },120);
-  player.speed=0; aiPlayers.forEach(a=>a.speed=0);
-}}
-
-// Draw
-function draw(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  const camX=player.x-canvas.width/2, camY=player.y-canvas.height/2;
-  for(let y=0;y<map.length;y++) for(let x=0;x<map[y].length;x++){
-    ctx.fillStyle=map[y][x]? "#2c2c54":"#202040";
-    ctx.fillRect(x*tileSize-camX, y*tileSize-camY, tileSize, tileSize);
+function checkWin() {
+  if (aiPlayers.filter(a => a.alive).length === 0) {
+    document.getElementById("flash").style.opacity = 1;
+    setTimeout(() => {
+      document.getElementById("flash").style.opacity = 0;
+      document.getElementById("winMsg").style.opacity = 1;
+      setTimeout(autoRestart, 3000);
+    }, 120);
+    player.speed = 0;
+    aiPlayers.forEach(a => a.speed = 0);
   }
-  deadTiles.forEach(d=>{ ctx.fillStyle="rgba(0,0,255,0.6)"; ctx.fillRect(d.tx*tileSize-camX, d.ty*tileSize-camY, tileSize, tileSize); });
-  aiPlayers.forEach(ai=>{ if(!ai.alive) return; ctx.fillStyle=ai.color; ctx.beginPath(); ctx.arc(ai.x-camX, ai.y-camY, tileSize/2.5,0,Math.PI*2); ctx.fill(); });
-  ctx.fillStyle=player.color; ctx.beginPath(); ctx.arc(player.x-camX,player.y-camY,tileSize/2.5,0,Math.PI*2); ctx.fill();
 }
 
-// Loop
-function loop(){ updatePlayer(); aiPlayers.forEach(updateAI); checkDeadTileCollision(); checkWin(); draw(); requestAnimationFrame(loop);}
+// Draw everything
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const camX = player.x - canvas.width / 2;
+  const camY = player.y - canvas.height / 2;
+
+  // Draw map
+  for (let y = 0; y < map.length; y++) {
+    for (let x = 0; x < map[y].length; x++) {
+      ctx.fillStyle = map[y][x] ? "#2c2c54" : "#202040";
+      ctx.fillRect(x * tileSize - camX, y * tileSize - camY, tileSize, tileSize);
+    }
+  }
+
+  // Draw dead tiles
+  deadTiles.forEach(d => {
+    ctx.fillStyle = "rgba(0,0,255,0.6)";
+    ctx.fillRect(d.tx * tileSize - camX, d.ty * tileSize - camY, tileSize, tileSize);
+  });
+
+  // Draw AI
+  aiPlayers.forEach(ai => {
+    if (!ai.alive) return;
+    ctx.fillStyle = ai.color;
+    ctx.beginPath();
+    ctx.arc(ai.x - camX, ai.y - camY, tileSize / 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // Draw player
+  ctx.fillStyle = player.color;
+  ctx.beginPath();
+  ctx.arc(player.x - camX, player.y - camY, tileSize / 2.5, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// Game loop
+function loop() {
+  updatePlayer();
+  aiPlayers.forEach(updateAI);
+  checkDeadTileCollision();
+  checkWin();
+  draw();
+  requestAnimationFrame(loop);
+}
 loop();
 
 // Cheat codes
-const codeInput=document.getElementById("codeInput");
-const codeSubmit=document.getElementById("codeSubmit");
-codeSubmit.addEventListener("click",submitCode);
-codeInput.addEventListener("keydown",e=>{if(e.key==="Enter") submitCode();});
+const codeInput = document.getElementById("codeInput");
+const codeSubmit = document.getElementById("codeSubmit");
+const codeToggle = document.getElementById("codeToggle");
+const codeContent = document.getElementById("codeContent");
 
-function submitCode(){
-  const code=codeInput.value.trim().toLowerCase();
-  switch(code){
-    case "killall":
-  aiPlayers.forEach(ai => {
-    if(ai.alive){
-      ai.alive = false;
-      const tx = Math.floor(ai.x / tileSize);
-      const ty = Math.floor(ai.y / tileSize);
-      deadTiles.push({tx, ty});
-    }
-  });
+codeToggle.addEventListener("click", () => {
+  codeContent.style.display = codeContent.style.display === "flex" ? "none" : "flex";
+});
 
-  // Show imposter win
-  document.getElementById("flash").style.opacity = 1;
-  setTimeout(() => {
-    document.getElementById("flash").style.opacity = 0;
-    document.getElementById("winMsg").style.opacity = 1;
-    setTimeout(autoRestart, 3000);
-  }, 120);
-
-  // Stop movement
-  player.speed = 0;
-  aiPlayers.forEach(a => a.speed = 0);
-
-  alert("All crewmates eliminated!");
-  break;
-    case "shuffle": aiPlayers.forEach(ai=>{ if(ai.alive){ const pos=getEmptyTile(); ai.x=pos.x; ai.y=pos.y; } }); alert("AI shuffled!"); break;
-    case "speedy": const orig=player.speed; player.speed*=2; alert("Speed boost activated!"); setTimeout(()=>{ player.speed=orig; alert("Speed boost ended.");},5000); break;
-    default: alert("Invalid code!");
+codeSubmit.addEventListener("click", () => {
+  const code = codeInput.value.trim().toLowerCase();
+  if (code === "killall") {
+    aiPlayers.forEach(ai => ai.alive = false);
+    checkWin();
+  } else if (code === "speed") {
+    player.speed = 5;
+  } else if (code === "regen") {
+    autoRestart();
   }
-  codeInput.value="";
-}
+  codeInput.value = "";
+});
 
-// Toggle cheat panel
-document.getElementById("codeToggle").addEventListener("click", ()=>{
-  const content=document.getElementById("codeContent");
-  content.style.display=content.style.display==="flex"?"none":"flex";
+// Handle window resize
+window.addEventListener("resize", () => {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
 });
 </script>
 </body>
