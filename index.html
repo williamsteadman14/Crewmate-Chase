@@ -42,6 +42,12 @@ canvas { display:block; width:100vw; height:100vh; background:#1a1a2e; }
 </div>
 
 <script>
+// Device detection
+function isMobileDevice() {
+  return /Mobi|Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent);
+}
+const computerControls = !isMobileDevice(); // true if on computer/laptop
+
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
@@ -67,23 +73,43 @@ const aiCount = 4;
 const player = {x:tileSize*2, y:tileSize*2, color:"red", speed:2};
 let killCooldown=false;
 
-// Joystick
+// Computer keyboard controls
+let keyX = 0, keyY = 0;
+if (computerControls) {
+  document.getElementById("joystick").style.display = "none"; // Hide joystick on computer
+  window.addEventListener("keydown", e => {
+    if (e.key === "ArrowUp" || e.key === "w") keyY = -1;
+    if (e.key === "ArrowDown" || e.key === "s") keyY = 1;
+    if (e.key === "ArrowLeft" || e.key === "a") keyX = -1;
+    if (e.key === "ArrowRight" || e.key === "d") keyX = 1;
+  });
+  window.addEventListener("keyup", e => {
+    if (e.key === "ArrowUp" || e.key === "w") keyY = 0;
+    if (e.key === "ArrowDown" || e.key === "s") keyY = 0;
+    if (e.key === "ArrowLeft" || e.key === "a") keyX = 0;
+    if (e.key === "ArrowRight" || e.key === "d") keyX = 0;
+  });
+}
+
+// Joystick (mobile only)
 const joystick = document.getElementById("joystick");
 const stick = document.getElementById("stick");
 let joyX=0, joyY=0;
-joystick.addEventListener("touchmove",(e)=>{
-  const rect = joystick.getBoundingClientRect();
-  const touch = e.touches[0];
-  const dx = touch.clientX-(rect.left+rect.width/2);
-  const dy = touch.clientY-(rect.top+rect.height/2);
-  const dist = Math.min(Math.hypot(dx,dy),40);
-  const angle = Math.atan2(dy,dx);
-  joyX = Math.cos(angle)*(dist/40);
-  joyY = Math.sin(angle)*(dist/40);
-  stick.style.left = 35+Math.cos(angle)*dist+"px";
-  stick.style.top = 35+Math.sin(angle)*dist+"px";
-});
-joystick.addEventListener("touchend",()=>{ joyX=0; joyY=0; stick.style.left="35px"; stick.style.top="35px"; });
+if (!computerControls) {
+  joystick.addEventListener("touchmove",(e)=>{
+    const rect = joystick.getBoundingClientRect();
+    const touch = e.touches[0];
+    const dx = touch.clientX-(rect.left+rect.width/2);
+    const dy = touch.clientY-(rect.top+rect.height/2);
+    const dist = Math.min(Math.hypot(dx,dy),40);
+    const angle = Math.atan2(dy,dx);
+    joyX = Math.cos(angle)*(dist/40);
+    joyY = Math.sin(angle)*(dist/40);
+    stick.style.left = 35+Math.cos(angle)*dist+"px";
+    stick.style.top = 35+Math.sin(angle)*dist+"px";
+  });
+  joystick.addEventListener("touchend",()=>{ joyX=0; joyY=0; stick.style.left="35px"; stick.style.top="35px"; });
+}
 
 // Kill button
 const killBtn = document.getElementById("killBtn");
@@ -177,9 +203,19 @@ function generateConnectedMap(){
 
 // Player movement
 function updatePlayer(){
-  const nx=player.x+joyX*player.speed*1.6, ny=player.y+joyY*player.speed*1.6;
-  if(!isWall(nx,player.y)) player.x=nx;
-  if(!isWall(player.x,ny)) player.y=ny;
+  if (computerControls) {
+    // Use keyboard controls
+    const nx = player.x + keyX * player.speed * 1.6;
+    const ny = player.y + keyY * player.speed * 1.6;
+    if(!isWall(nx,player.y)) player.x = nx;
+    if(!isWall(player.x,ny)) player.y = ny;
+  } else {
+    // Use joystick/touch controls
+    const nx = player.x + joyX * player.speed * 1.6;
+    const ny = player.y + joyY * player.speed * 1.6;
+    if(!isWall(nx,player.y)) player.x = nx;
+    if(!isWall(player.x,ny)) player.y = ny;
+  }
 }
 
 // AI
