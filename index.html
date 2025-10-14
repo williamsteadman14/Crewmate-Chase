@@ -25,7 +25,7 @@ canvas { display:block; width:100vw; height:100vh; background:#1a1a2e; }
 </head>
 <body>
 <canvas id="game"></canvas>
-<div id="joystick"><div id="stick"></div></div>
+<div id="joystick" style="display:none"><div id="stick"></div></div>
 <button id="killBtn"><span id="killText">KILL</span><div id="killBar"></div></button>
 <button id="restartBtn">RESTART</button>
 <div id="flash"></div>
@@ -42,11 +42,8 @@ canvas { display:block; width:100vw; height:100vh; background:#1a1a2e; }
 </div>
 
 <script>
-// Device detection
-function isMobileDevice() {
-  return /Mobi|Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent);
-}
-const computerControls = !isMobileDevice(); // true if on computer/laptop
+// --- FORCE DESKTOP MODE (for debugging) ---
+const computerControls = true; // Force desktop mode for now
 
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
@@ -73,69 +70,47 @@ const aiCount = 4;
 const player = {x:tileSize*2, y:tileSize*2, color:"red", speed:2};
 let killCooldown=false;
 
-// Computer keyboard controls
+// --- Desktop Controls ---
 let keyX = 0, keyY = 0;
-if (computerControls) {
-  document.getElementById("joystick").style.display = "none"; // Hide joystick on computer
+document.getElementById("joystick").style.display = "none"; // Hide joystick on desktop
 
-  window.addEventListener("keydown", e => {
-    // Movement keys
-    if (e.key === "ArrowUp" || e.key === "w") keyY = -1;
-    if (e.key === "ArrowDown" || e.key === "s") keyY = 1;
-    if (e.key === "ArrowLeft" || e.key === "a") keyX = -1;
-    if (e.key === "ArrowRight" || e.key === "d") keyX = 1;
+window.addEventListener("keydown", e => {
+  // Movement keys
+  if (e.key === "ArrowUp" || e.key === "w") keyY = -1;
+  if (e.key === "ArrowDown" || e.key === "s") keyY = 1;
+  if (e.key === "ArrowLeft" || e.key === "a") keyX = -1;
+  if (e.key === "ArrowRight" || e.key === "d") keyX = 1;
 
-    // "k" for kill (only trigger on keydown, not repeat)
-    if ((e.key === "k" || e.key === "K") && !killCooldown && !e.repeat) {
-      let killed = false;
-      aiPlayers.forEach(ai => {
-        if (ai.alive && Math.hypot(ai.x - player.x, ai.y - player.y) < 40) {
-          ai.alive = false;
-          deadTiles.push({ tx: Math.floor(ai.x / tileSize), ty: Math.floor(ai.y / tileSize) });
-          killed = true;
-        }
-      });
-      if (killed) {
-        startCooldown();
-        checkWin();
+  // "k" for kill (only trigger on keydown, not repeat)
+  if ((e.key === "k" || e.key === "K") && !killCooldown && !e.repeat) {
+    let killed = false;
+    aiPlayers.forEach(ai => {
+      if (ai.alive && Math.hypot(ai.x - player.x, ai.y - player.y) < 40) {
+        ai.alive = false;
+        deadTiles.push({ tx: Math.floor(ai.x / tileSize), ty: Math.floor(ai.y / tileSize) });
+        killed = true;
       }
+    });
+    if (killed) {
+      startCooldown();
+      checkWin();
     }
+  }
 
-    // "r" for restart (only trigger on keydown, not repeat)
-    if ((e.key === "r" || e.key === "R") && !e.repeat) {
-      autoRestart();
-    }
-  });
+  // "r" for restart (only trigger on keydown, not repeat)
+  if ((e.key === "r" || e.key === "R") && !e.repeat) {
+    autoRestart();
+  }
+});
 
-  window.addEventListener("keyup", e => {
-    if (e.key === "ArrowUp" || e.key === "w") keyY = 0;
-    if (e.key === "ArrowDown" || e.key === "s") keyY = 0;
-    if (e.key === "ArrowLeft" || e.key === "a") keyX = 0;
-    if (e.key === "ArrowRight" || e.key === "d") keyX = 0;
-  });
-}
+window.addEventListener("keyup", e => {
+  if (e.key === "ArrowUp" || e.key === "w") keyY = 0;
+  if (e.key === "ArrowDown" || e.key === "s") keyY = 0;
+  if (e.key === "ArrowLeft" || e.key === "a") keyX = 0;
+  if (e.key === "ArrowRight" || e.key === "d") keyX = 0;
+});
 
-// Joystick (mobile only)
-const joystick = document.getElementById("joystick");
-const stick = document.getElementById("stick");
-let joyX=0, joyY=0;
-if (!computerControls) {
-  joystick.addEventListener("touchmove",(e)=>{
-    const rect = joystick.getBoundingClientRect();
-    const touch = e.touches[0];
-    const dx = touch.clientX-(rect.left+rect.width/2);
-    const dy = touch.clientY-(rect.top+rect.height/2);
-    const dist = Math.min(Math.hypot(dx,dy),40);
-    const angle = Math.atan2(dy,dx);
-    joyX = Math.cos(angle)*(dist/40);
-    joyY = Math.sin(angle)*(dist/40);
-    stick.style.left = 35+Math.cos(angle)*dist+"px";
-    stick.style.top = 35+Math.sin(angle)*dist+"px";
-  });
-  joystick.addEventListener("touchend",()=>{ joyX=0; joyY=0; stick.style.left="35px"; stick.style.top="35px"; });
-}
-
-// Kill button
+// --- Kill button ---
 const killBtn = document.getElementById("killBtn");
 const killText = document.getElementById("killText");
 const killBar = document.getElementById("killBar");
@@ -176,7 +151,7 @@ function startCooldown(){
   }, interval);
 }
 
-// Load map
+// --- Map loading ---
 function loadMap(newMap){
   map.length=0;
   newMap.forEach(r=>map.push([...r]));
@@ -202,11 +177,11 @@ function loadMap(newMap){
 }
 loadMap(originalMap);
 
-// Restart
+// --- Restart ---
 document.getElementById("restartBtn").addEventListener("click", ()=>{ autoRestart(); });
 function autoRestart(){ loadMap(generateConnectedMap()); }
 
-// Collision helpers
+// --- Collision helpers ---
 function isWall(x,y){ const tx=Math.floor(x/tileSize), ty=Math.floor(y/tileSize); return map[ty] && map[ty][tx]===1; }
 function getEmptyTile(){ let x,y; do{x=Math.floor(Math.random()*map[0].length); y=Math.floor(Math.random()*map.length);}while(map[y][x]===1); return {x:x*tileSize+tileSize/2,y:y*tileSize+tileSize/2}; }
 function generateConnectedMap(){
@@ -229,24 +204,16 @@ function generateConnectedMap(){
   return newMap;
 }
 
-// Player movement
+// --- Player movement ---
 function updatePlayer(){
-  if (computerControls) {
-    // Use keyboard controls
-    const nx = player.x + keyX * player.speed * 1.6;
-    const ny = player.y + keyY * player.speed * 1.6;
-    if(!isWall(nx,player.y)) player.x = nx;
-    if(!isWall(player.x,ny)) player.y = ny;
-  } else {
-    // Use joystick/touch controls
-    const nx = player.x + joyX * player.speed * 1.6;
-    const ny = player.y + joyY * player.speed * 1.6;
-    if(!isWall(nx,player.y)) player.x = nx;
-    if(!isWall(player.x,ny)) player.y = ny;
-  }
+  // Use keyboard controls
+  const nx = player.x + keyX * player.speed * 1.6;
+  const ny = player.y + keyY * player.speed * 1.6;
+  if(!isWall(nx,player.y)) player.x = nx;
+  if(!isWall(player.x,ny)) player.y = ny;
 }
 
-// AI
+// --- AI ---
 function getNextStep(ai){
   const start = {x:Math.floor(ai.x/tileSize), y:Math.floor(ai.y/tileSize)};
   const goal = {x:Math.floor(player.x/tileSize), y:Math.floor(player.y/tileSize)};
@@ -295,7 +262,7 @@ function updateAI(ai){
   }
 }
 
-// Dead tiles
+// --- Dead tiles ---
 function checkDeadTileCollision(){
   for(const ai of aiPlayers){ if(!ai.alive) continue;
     const tx=Math.floor(ai.x/tileSize), ty=Math.floor(ai.y/tileSize);
@@ -312,7 +279,7 @@ function checkDeadTileCollision(){
   }
 }
 
-// Win check
+// --- Win check ---
 function checkWin() {
   if (aiPlayers.filter(a => a.alive).length === 0) {
     document.getElementById("flash").style.opacity = 1;
@@ -326,7 +293,7 @@ function checkWin() {
   }
 }
 
-// Draw everything
+// --- Draw everything ---
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const camX = player.x - canvas.width / 2;
@@ -362,7 +329,7 @@ function draw() {
   ctx.fill();
 }
 
-// Game loop
+// --- Game loop ---
 function loop() {
   updatePlayer();
   aiPlayers.forEach(updateAI);
@@ -373,7 +340,7 @@ function loop() {
 }
 loop();
 
-// Cheat codes
+// --- Cheat codes ---
 const codeInput = document.getElementById("codeInput");
 const codeSubmit = document.getElementById("codeSubmit");
 const codeToggle = document.getElementById("codeToggle");
@@ -396,7 +363,7 @@ codeSubmit.addEventListener("click", () => {
   codeInput.value = "";
 });
 
-// Handle window resize
+// --- Canvas resize handler ---
 window.addEventListener("resize", () => {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
