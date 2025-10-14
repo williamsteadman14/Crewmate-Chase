@@ -15,8 +15,8 @@ canvas { display:block; width:100vw; height:100vh; background:#1a1a2e; }
 #restartBtn { position:absolute; top:20px; left:50%; transform:translateX(-50%); padding:10px 20px; font-size:16px; border-radius:10px; }
 #flash { position:absolute; top:0; left:0; width:100%; height:100%; background:red; opacity:0; transition:opacity 0.5s; pointer-events:none; }
 #crewFlash { position:absolute; top:0; left:0; width:100%; height:100%; background:blue; opacity:0; transition:opacity 0.5s; pointer-events:none; }
-#winMsg { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-family:Arial, sans-serif; font-size:40px; color:white; opacity:0; transition:opacity 0.5s; text-shadow:0 0 20px red; pointer-events:none;}
-#crewMsg { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-family:Arial, sans-serif; font-size:40px; color:white; opacity:0; transition:opacity 0.5s; text-shadow:0 0 20px blue; pointer-events:none;}
+#winMsg { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-family:Arial, sans-serif; font-size:40px; color:white; opacity:0; transition:opacity 0.5s; text-shadow:0 0 20px red;}
+#crewMsg { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-family:Arial, sans-serif; font-size:40px; color:white; opacity:0; transition:opacity 0.5s; text-shadow:0 0 20px blue;}
 #codePanel { position:absolute; top:10px; left:10px; padding:5px; border-radius:10px; background:rgba(255,255,255,0.1); display:flex; align-items:center; gap:5px; z-index:10; }
 #codePanel input { padding:5px 8px; border-radius:5px; border:none; outline:none; font-size:14px; background:rgba(255,255,255,0.2); color:white; }
 #codePanel button { padding:5px 10px; border-radius:5px; border:none; background:#222; color:white; cursor:pointer; font-size:14px; }
@@ -35,9 +35,17 @@ canvas { display:block; width:100vw; height:100vh; background:#1a1a2e; }
 
 <div id="codePanel">
   <button id="codeToggle">CODE</button>
-  <div id="codeContent" style="display:none; gap:5px; margin-left:5px; flex-direction:row;">
-    <input id="codeInput" type="text" placeholder="Enter code">
-    <button id="codeSubmit">Submit</button>
+  <div id="codeContent" style="display:none; gap:5px; margin-left:5px; flex-direction:column;">
+    <div style="display:flex; gap:5px;">
+      <input id="codeInput" type="text" placeholder="Enter code">
+      <button id="codeSubmit">Submit</button>
+    </div>
+    <div id="codeInstructions" style="color:white; font-size:14px; margin-top:8px;">
+      <b>Instructions:</b><br>
+      WASD to move<br>
+      K to kill<br>
+      R to restart
+    </div>
   </div>
 </div>
 
@@ -228,7 +236,7 @@ function getNextStep(ai){
     for(const m of moves){
       const nx=current.x+m.dx, ny=current.y+m.dy;
       if(nx>=0&&ny>=0&&ny<map.length&&nx<map[0].length&&!visited[ny][nx]&&map[ny][nx]===0){
-        visited[ny][nx]=true; prev[ny][nx]=current; queue.push({x:nx,y:ny});
+        visited[ny][nx]=true; prev[ny][nx]=current; queue.push({x=nx,y=ny});
       }
     }
   }
