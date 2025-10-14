@@ -236,7 +236,7 @@ function getNextStep(ai){
     for(const m of moves){
       const nx=current.x+m.dx, ny=current.y+m.dy;
       if(nx>=0&&ny>=0&&ny<map.length&&nx<map[0].length&&!visited[ny][nx]&&map[ny][nx]===0){
-        visited[ny][nx]=true; prev[ny][nx]=current; queue.push({x=nx,y=ny});
+        visited[ny][nx]=true; prev[ny][nx]=current; queue.push({x:nx,y:ny}); // <-- Fixed typo here
       }
     }
   }
