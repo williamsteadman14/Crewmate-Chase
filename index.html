@@ -21,7 +21,19 @@ canvas { display:block; width:100vw; height:100vh; background:#1a1a2e; }
 #codePanel input { padding:5px 8px; border-radius:5px; border:none; outline:none; font-size:14px; background:rgba(255,255,255,0.2); color:white; }
 #codePanel button { padding:5px 10px; border-radius:5px; border:none; background:#222; color:white; cursor:pointer; font-size:14px; }
 #codePanel button:hover { background:#444; }
-#codeInstructions { position:absolute; top:60px; left:10px; color:white; font-size:14px; margin-top:8px; background:rgba(0,0,0,0.5); padding:8px 12px; border-radius:8px; z-index:10; }
+#codeInstructions { 
+  position:absolute; 
+  top:55px; 
+  left:10px; 
+  color:white; 
+  font-size:14px; 
+  margin-top:8px; 
+  background:rgba(0,0,0,0.5); 
+  padding:8px 12px; 
+  border-radius:8px; 
+  z-index:10; 
+  pointer-events:none;
+}
 </style>
 </head>
 <body>
@@ -34,6 +46,7 @@ canvas { display:block; width:100vw; height:100vh; background:#1a1a2e; }
 <div id="winMsg">IMPOSTER WINS!</div>
 <div id="crewMsg">CREWMATES WIN!</div>
 
+<!-- CODE PANEL (top left) -->
 <div id="codePanel">
   <button id="codeToggle">CODE</button>
   <div id="codeContent" style="display:none; gap:5px; margin-left:5px; flex-direction:column;">
@@ -43,6 +56,8 @@ canvas { display:block; width:100vw; height:100vh; background:#1a1a2e; }
     </div>
   </div>
 </div>
+
+<!-- INSTRUCTIONS box, now OUTSIDE codePanel and always visible below it -->
 <div id="codeInstructions">
   <b>Instructions:</b><br>
   WASD to move<br>
