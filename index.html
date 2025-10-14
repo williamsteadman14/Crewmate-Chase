@@ -15,8 +15,8 @@ canvas { display:block; width:100vw; height:100vh; background:#1a1a2e; }
 #restartBtn { position:absolute; top:20px; left:50%; transform:translateX(-50%); padding:10px 20px; font-size:16px; border-radius:10px; }
 #flash { position:absolute; top:0; left:0; width:100%; height:100%; background:red; opacity:0; transition:opacity 0.5s; pointer-events:none; }
 #crewFlash { position:absolute; top:0; left:0; width:100%; height:100%; background:blue; opacity:0; transition:opacity 0.5s; pointer-events:none; }
-#winMsg { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-family:Arial, sans-serif; font-size:40px; color:white; opacity:0; transition:opacity 0.5s; text-shadow:0 0 20px red[...]
-#crewMsg { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-family:Arial, sans-serif; font-size:40px; color:white; opacity:0; transition:opacity 0.5s; text-shadow:0 0 20px bl[...]
+#winMsg { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-family:Arial, sans-serif; font-size:40px; color:white; opacity:0; transition:opacity 0.5s; text-shadow:0 0 20px red; pointer-events:none;}
+#crewMsg { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-family:Arial, sans-serif; font-size:40px; color:white; opacity:0; transition:opacity 0.5s; text-shadow:0 0 20px blue; pointer-events:none;}
 #codePanel { position:absolute; top:10px; left:10px; padding:5px; border-radius:10px; background:rgba(255,255,255,0.1); display:flex; align-items:center; gap:5px; z-index:10; }
 #codePanel input { padding:5px 8px; border-radius:5px; border:none; outline:none; font-size:14px; background:rgba(255,255,255,0.2); color:white; }
 #codePanel button { padding:5px 10px; border-radius:5px; border:none; background:#222; color:white; cursor:pointer; font-size:14px; }
@@ -77,30 +77,36 @@ let killCooldown=false;
 let keyX = 0, keyY = 0;
 if (computerControls) {
   document.getElementById("joystick").style.display = "none"; // Hide joystick on computer
+
   window.addEventListener("keydown", e => {
+    // Movement keys
     if (e.key === "ArrowUp" || e.key === "w") keyY = -1;
     if (e.key === "ArrowDown" || e.key === "s") keyY = 1;
     if (e.key === "ArrowLeft" || e.key === "a") keyX = -1;
     if (e.key === "ArrowRight" || e.key === "d") keyX = 1;
 
-    // "k" for kill
-    if (e.key === "k" || e.key === "K") {
-      if(!killCooldown) {
-        aiPlayers.forEach(ai=>{
-          if(ai.alive && Math.hypot(ai.x-player.x, ai.y-player.y)<40){
-            ai.alive=false;
-            deadTiles.push({tx:Math.floor(ai.x/tileSize),ty:Math.floor(ai.y/tileSize)});
-          }
-        });
+    // "k" for kill (only trigger on keydown, not repeat)
+    if ((e.key === "k" || e.key === "K") && !killCooldown && !e.repeat) {
+      let killed = false;
+      aiPlayers.forEach(ai => {
+        if (ai.alive && Math.hypot(ai.x - player.x, ai.y - player.y) < 40) {
+          ai.alive = false;
+          deadTiles.push({ tx: Math.floor(ai.x / tileSize), ty: Math.floor(ai.y / tileSize) });
+          killed = true;
+        }
+      });
+      if (killed) {
         startCooldown();
         checkWin();
       }
     }
-    // "r" for restart
-    if (e.key === "r" || e.key === "R") {
+
+    // "r" for restart (only trigger on keydown, not repeat)
+    if ((e.key === "r" || e.key === "R") && !e.repeat) {
       autoRestart();
     }
   });
+
   window.addEventListener("keyup", e => {
     if (e.key === "ArrowUp" || e.key === "w") keyY = 0;
     if (e.key === "ArrowDown" || e.key === "s") keyY = 0;
@@ -136,14 +142,18 @@ const killBar = document.getElementById("killBar");
 
 killBtn.addEventListener("click", ()=>{
   if(killCooldown) return;
+  let killed = false;
   aiPlayers.forEach(ai=>{
     if(ai.alive && Math.hypot(ai.x-player.x, ai.y-player.y)<40){
       ai.alive=false;
       deadTiles.push({tx:Math.floor(ai.x/tileSize),ty:Math.floor(ai.y/tileSize)});
+      killed = true;
     }
   });
-  startCooldown();
-  checkWin();
+  if(killed) {
+    startCooldown();
+    checkWin();
+  }
 });
 
 function startCooldown(){
@@ -198,7 +208,7 @@ function autoRestart(){ loadMap(generateConnectedMap()); }
 
 // Collision helpers
 function isWall(x,y){ const tx=Math.floor(x/tileSize), ty=Math.floor(y/tileSize); return map[ty] && map[ty][tx]===1; }
-function getEmptyTile(){ let x,y; do{x=Math.floor(Math.random()*map[0].length); y=Math.floor(Math.random()*map.length);}while(map[y][x]===1); return {x:x*tileSize+tileSize/2,y:y*tileSize+tileSize/2}; [...]
+function getEmptyTile(){ let x,y; do{x=Math.floor(Math.random()*map[0].length); y=Math.floor(Math.random()*map.length);}while(map[y][x]===1); return {x:x*tileSize+tileSize/2,y:y*tileSize+tileSize/2}; }
 function generateConnectedMap(){
   const rows=originalMap.length, cols=originalMap[0].length;
   const newMap=Array.from({length:rows},()=>Array(cols).fill(1));
@@ -291,7 +301,7 @@ function checkDeadTileCollision(){
     const tx=Math.floor(ai.x/tileSize), ty=Math.floor(ai.y/tileSize);
     for(const dead of deadTiles){ if(dead.tx===tx && dead.ty===ty){
       document.getElementById("crewFlash").style.opacity=1;
-   setTimeout(() => {
+      setTimeout(() => {
         document.getElementById("crewMsg").style.opacity = 1;
         setTimeout(autoRestart, 3000);
       }, 120);
