@@ -21,6 +21,7 @@ canvas { display:block; width:100vw; height:100vh; background:#1a1a2e; }
 #codePanel input { padding:5px 8px; border-radius:5px; border:none; outline:none; font-size:14px; background:rgba(255,255,255,0.2); color:white; }
 #codePanel button { padding:5px 10px; border-radius:5px; border:none; background:#222; color:white; cursor:pointer; font-size:14px; }
 #codePanel button:hover { background:#444; }
+#codeInstructions { position:absolute; top:60px; left:10px; color:white; font-size:14px; margin-top:8px; background:rgba(0,0,0,0.5); padding:8px 12px; border-radius:8px; z-index:10; }
 </style>
 </head>
 <body>
@@ -40,13 +41,13 @@ canvas { display:block; width:100vw; height:100vh; background:#1a1a2e; }
       <input id="codeInput" type="text" placeholder="Enter code">
       <button id="codeSubmit">Submit</button>
     </div>
-    <div id="codeInstructions" style="color:white; font-size:14px; margin-top:8px;">
-      <b>Instructions:</b><br>
-      WASD to move<br>
-      K to kill<br>
-      R to restart
-    </div>
   </div>
+</div>
+<div id="codeInstructions">
+  <b>Instructions:</b><br>
+  WASD to move<br>
+  K to kill<br>
+  R to restart
 </div>
 
 <script>
@@ -236,7 +237,7 @@ function getNextStep(ai){
     for(const m of moves){
       const nx=current.x+m.dx, ny=current.y+m.dy;
       if(nx>=0&&ny>=0&&ny<map.length&&nx<map[0].length&&!visited[ny][nx]&&map[ny][nx]===0){
-        visited[ny][nx]=true; prev[ny][nx]=current; queue.push({x:nx, y:ny}); // <-- FIXED HERE!
+        visited[ny][nx]=true; prev[ny][nx]=current; queue.push({x:nx, y:ny});
       }
     }
   }
