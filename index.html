@@ -15,8 +15,8 @@ canvas { display:block; width:100vw; height:100vh; background:#1a1a2e; }
 #restartBtn { position:absolute; top:20px; left:50%; transform:translateX(-50%); padding:10px 20px; font-size:16px; border-radius:10px; }
 #flash { position:absolute; top:0; left:0; width:100%; height:100%; background:red; opacity:0; transition:opacity 0.5s; pointer-events:none; }
 #crewFlash { position:absolute; top:0; left:0; width:100%; height:100%; background:blue; opacity:0; transition:opacity 0.5s; pointer-events:none; }
-#winMsg { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-family:Arial, sans-serif; font-size:40px; color:white; opacity:0; transition:opacity 0.5s; text-shadow:0 0 20px red;}
-#crewMsg { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-family:Arial, sans-serif; font-size:40px; color:white; opacity:0; transition:opacity 0.5s; text-shadow:0 0 20px blue;}
+#winMsg { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-family:Arial, sans-serif; font-size:40px; color:white; opacity:0; transition:opacity 0.5s; text-shadow:0 0 20px red; z-index:11; pointer-events:none;}
+#crewMsg { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-family:Arial, sans-serif; font-size:40px; color:white; opacity:0; transition:opacity 0.5s; text-shadow:0 0 20px blue; z-index:11; pointer-events:none;}
 #codePanel { position:absolute; top:10px; left:10px; padding:5px; border-radius:10px; background:rgba(255,255,255,0.1); display:flex; align-items:center; gap:5px; z-index:10; }
 #codePanel input { padding:5px 8px; border-radius:5px; border:none; outline:none; font-size:14px; background:rgba(255,255,255,0.2); color:white; }
 #codePanel button { padding:5px 10px; border-radius:5px; border:none; background:#222; color:white; cursor:pointer; font-size:14px; }
@@ -66,8 +66,11 @@ canvas { display:block; width:100vw; height:100vh; background:#1a1a2e; }
 </div>
 
 <script>
-// --- FORCE DESKTOP MODE (for debugging) ---
-const computerControls = true; // Force desktop mode for now
+// --- Device detection ---
+function isMobile() {
+  return /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+}
+const computerControls = !isMobile();
 
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
@@ -94,47 +97,152 @@ const aiCount = 4;
 const player = {x:tileSize*2, y:tileSize*2, color:"red", speed:2};
 let killCooldown=false;
 
-// --- Desktop Controls ---
+// --- Controls ---
 let keyX = 0, keyY = 0;
-document.getElementById("joystick").style.display = "none"; // Hide joystick on desktop
+const joystick = document.getElementById("joystick");
+const stick = document.getElementById("stick");
 
-window.addEventListener("keydown", e => {
-  // Movement keys
-  if (e.key === "ArrowUp" || e.key === "w") keyY = -1;
-  if (e.key === "ArrowDown" || e.key === "s") keyY = 1;
-  if (e.key === "ArrowLeft" || e.key === "a") keyX = -1;
-  if (e.key === "ArrowRight" || e.key === "d") keyX = 1;
+if (computerControls) {
+  joystick.style.display = "none";
+  document.getElementById("codeInstructions").style.display = "block";
+  // Keyboard controls
+  window.addEventListener("keydown", e => {
+    // Movement keys
+    if (e.key === "ArrowUp" || e.key === "w") keyY = -1;
+    if (e.key === "ArrowDown" || e.key === "s") keyY = 1;
+    if (e.key === "ArrowLeft" || e.key === "a") keyX = -1;
+    if (e.key === "ArrowRight" || e.key === "d") keyX = 1;
 
-  // "k" for kill (only trigger on keydown, not repeat)
-  if ((e.key === "k" || e.key === "K") && !killCooldown && !e.repeat) {
+    // "k" for kill (only trigger on keydown, not repeat)
+    if ((e.key === "k" || e.key === "K") && !killCooldown && !e.repeat) {
+      let killed = false;
+      aiPlayers.forEach(ai => {
+        if (ai.alive && Math.hypot(ai.x - player.x, ai.y - player.y) < 40) {
+          ai.alive = false;
+          deadTiles.push({ tx: Math.floor(ai.x / tileSize), ty: Math.floor(ai.y / tileSize) });
+          killed = true;
+        }
+      });
+      if (killed) {
+        startCooldown();
+        checkWin();
+      }
+    }
+
+    // "r" for restart (only trigger on keydown, not repeat)
+    if ((e.key === "r" || e.key === "R") && !e.repeat) {
+      autoRestart();
+    }
+  });
+
+  window.addEventListener("keyup", e => {
+    if (e.key === "ArrowUp" || e.key === "w") keyY = 0;
+    if (e.key === "ArrowDown" || e.key === "s") keyY = 0;
+    if (e.key === "ArrowLeft" || e.key === "a") keyX = 0;
+    if (e.key === "ArrowRight" || e.key === "d") keyX = 0;
+  });
+
+} else {
+  joystick.style.display = "block";
+  document.getElementById("codeInstructions").style.display = "none";
+  // Mobile joystick controls
+  let dragging = false, joyCenter = {x:50, y:50}, joyMax = 40;
+
+  function getTouch(e) {
+    if (e.touches && e.touches.length) return e.touches[0];
+    return e;
+  }
+
+  function updateStick(x, y) {
+    // Clamp to joyMax radius
+    let dx = x - joyCenter.x, dy = y - joyCenter.y;
+    let dist = Math.hypot(dx, dy);
+    if (dist > joyMax) {
+      dx *= joyMax / dist;
+      dy *= joyMax / dist;
+    }
+    stick.style.left = (joyCenter.x + dx - 15) + "px";
+    stick.style.top = (joyCenter.y + dy - 15) + "px";
+    // Normalize
+    keyX = dx / joyMax;
+    keyY = dy / joyMax;
+  }
+
+  joystick.addEventListener("touchstart", function(e) {
+    dragging = true;
+    let touch = getTouch(e);
+    let rect = joystick.getBoundingClientRect();
+    joyCenter = {x:rect.width/2, y:rect.height/2};
+    updateStick(touch.clientX - rect.left, touch.clientY - rect.top);
+    e.preventDefault();
+  });
+
+  joystick.addEventListener("touchmove", function(e) {
+    if (!dragging) return;
+    let touch = getTouch(e);
+    let rect = joystick.getBoundingClientRect();
+    updateStick(touch.clientX - rect.left, touch.clientY - rect.top);
+    e.preventDefault();
+  });
+
+  joystick.addEventListener("touchend", function(e) {
+    dragging = false;
+    stick.style.left = (joyCenter.x - 15) + "px";
+    stick.style.top = (joyCenter.y - 15) + "px";
+    keyX = 0; keyY = 0;
+    e.preventDefault();
+  });
+
+  // Also support mouse for joystick (for testing)
+  joystick.addEventListener("mousedown", function(e) {
+    dragging = true;
+    let rect = joystick.getBoundingClientRect();
+    joyCenter = {x:rect.width/2, y:rect.height/2};
+    updateStick(e.clientX - rect.left, e.clientY - rect.top);
+    e.preventDefault();
+  });
+
+  joystick.addEventListener("mousemove", function(e) {
+    if (!dragging) return;
+    let rect = joystick.getBoundingClientRect();
+    updateStick(e.clientX - rect.left, e.clientY - rect.top);
+    e.preventDefault();
+  });
+
+  window.addEventListener("mouseup", function() {
+    if (!dragging) return;
+    dragging = false;
+    stick.style.left = (joyCenter.x - 15) + "px";
+    stick.style.top = (joyCenter.y - 15) + "px";
+    keyX = 0; keyY = 0;
+  });
+
+  // Mobile kill button
+  document.getElementById("killBtn").addEventListener("touchstart", function(e) {
+    if(killCooldown) return;
     let killed = false;
-    aiPlayers.forEach(ai => {
-      if (ai.alive && Math.hypot(ai.x - player.x, ai.y - player.y) < 40) {
-        ai.alive = false;
-        deadTiles.push({ tx: Math.floor(ai.x / tileSize), ty: Math.floor(ai.y / tileSize) });
+    aiPlayers.forEach(ai=>{
+      if(ai.alive && Math.hypot(ai.x-player.x, ai.y-player.y)<40){
+        ai.alive=false;
+        deadTiles.push({tx:Math.floor(ai.x/tileSize),ty:Math.floor(ai.y/tileSize)});
         killed = true;
       }
     });
-    if (killed) {
+    if(killed) {
       startCooldown();
       checkWin();
     }
-  }
+    e.preventDefault();
+  });
 
-  // "r" for restart (only trigger on keydown, not repeat)
-  if ((e.key === "r" || e.key === "R") && !e.repeat) {
+  // Mobile restart button
+  document.getElementById("restartBtn").addEventListener("touchstart", function(e) {
     autoRestart();
-  }
-});
+    e.preventDefault();
+  });
+}
 
-window.addEventListener("keyup", e => {
-  if (e.key === "ArrowUp" || e.key === "w") keyY = 0;
-  if (e.key === "ArrowDown" || e.key === "s") keyY = 0;
-  if (e.key === "ArrowLeft" || e.key === "a") keyX = 0;
-  if (e.key === "ArrowRight" || e.key === "d") keyX = 0;
-});
-
-// --- Kill button ---
+// --- Kill button (desktop click also supported) ---
 const killBtn = document.getElementById("killBtn");
 const killText = document.getElementById("killText");
 const killBar = document.getElementById("killBar");
@@ -230,7 +338,7 @@ function generateConnectedMap(){
 
 // --- Player movement ---
 function updatePlayer(){
-  // Use keyboard controls
+  // Use keyboard or joystick controls
   const nx = player.x + keyX * player.speed * 1.6;
   const ny = player.y + keyY * player.speed * 1.6;
   if(!isWall(nx,player.y)) player.x = nx;
